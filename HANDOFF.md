@@ -26,6 +26,24 @@ All six planned phases are built. `npm run build` and `npx eslint .` are clean; 
 
 That gap is the top of the to-do list.
 
+## Getting git working on a new machine
+
+GitHub disabled password authentication for git in August 2021 — **a GitHub password will be rejected**, no matter how correct it is. Don't waste time on it. Set up an SSH key once per machine instead:
+
+```bash
+ssh-keygen -t ed25519 -C "your@email.com" -f ~/.ssh/id_ed25519 -N ""
+cat ~/.ssh/id_ed25519.pub
+```
+
+Paste the printed line into **https://github.com/settings/ssh/new** (no time limit — unlike a device-flow login code, this doesn't expire). Then:
+
+```bash
+git remote set-url origin git@github.com:tunisiginie/linkedin-for-influencers.git
+git push
+```
+
+(`gh auth login --web` is the alternative, but its device code expires in ~15 minutes, which made it unreliable in an agent-driven workflow — the delay between the code being printed and a human acting on it kept losing the race. SSH has no such window.)
+
 ## Getting running
 
 ```bash
