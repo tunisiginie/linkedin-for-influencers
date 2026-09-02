@@ -1,7 +1,11 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
-import type { Creator, Profile } from "@/lib/types";
+import { roleHome } from "@/lib/role";
+import type { AccountType, Creator, Profile } from "@/lib/types";
+
+export { roleHome };
 
 /** The current auth user, or null. */
 export async function getUser() {
@@ -68,7 +72,13 @@ export async function getOrEnsureOrgId(): Promise<string | null> {
     .eq("id", user.id)
     .maybeSingle();
 
-  const { data: org, error } = await supabase
+  // Admin client for this bootstrap sequence only — same chicken-and-egg
+  // RLS problem as the creator claim flow (see src/lib/actions/claim.ts):
+  // organizations' SELECT policy requires is_org_member(id), which can't be
+  // true until the org_members row below exists, so the anon client's
+  // insert-then-select-back would fail RLS on the very first request.
+  const admin = createAdminClient();
+  const { data: org, error } = await admin
     .from("organizations")
     .insert({
       name: profile?.full_name ? `${profile.full_name}'s Team` : "My Organization",
@@ -78,7 +88,7 @@ export async function getOrEnsureOrgId(): Promise<string | null> {
     .single();
   if (error || !org) return null;
 
-  await supabase.from("org_members").insert({ org_id: org.id, user_id: user.id, role: "owner" });
+  await admin.from("org_members").insert({ org_id: org.id, user_id: user.id, role: "owner" });
   return org.id;
 }
 
@@ -94,5 +104,36 @@ export async function requireAdmin() {
   const profile = await getProfile();
   if (!profile) redirect("/login");
   if (!profile.is_admin) redirect("/");
+  return profile;
+}
+
+/** The signed-in user's declared role (profiles.account_type), or null when
+ * signed out. This is the source of truth for role — do not infer it from
+ * `getMyClaimedCreator()` elsewhere; that only tells you whether a profile
+ * has been *claimed*, not what the account was set up as. */
+export async function getRole(): Promise<AccountType | null> {
+  const profile = await getProfile();
+  return profile?.account_type ?? null;
+}
+
+/** Redirects to /login when signed out, or to the caller's own role home
+ * when signed in as a sponsor. Admins pass through. Returns the profile. */
+export async function requireCreator() {
+  const profile = await getProfile();
+  if (!profile) redirect("/login");
+  if (profile.account_type !== "creator" && profile.account_type !== "admin") {
+    redirect(roleHome(profile.account_type));
+  }
+  return profile;
+}
+
+/** Redirects to /login when signed out, or to the caller's own role home
+ * when signed in as a creator. Admins pass through. Returns the profile. */
+export async function requireSponsor() {
+  const profile = await getProfile();
+  if (!profile) redirect("/login");
+  if (profile.account_type !== "sponsor" && profile.account_type !== "admin") {
+    redirect(roleHome(profile.account_type));
+  }
   return profile;
 }

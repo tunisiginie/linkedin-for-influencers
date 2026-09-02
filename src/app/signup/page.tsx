@@ -1,9 +1,12 @@
+import { Suspense } from "react";
 import { AuthForm } from "@/components/auth-form";
 
 export default function SignupPage() {
   return (
     <div className="mx-auto flex min-h-[calc(100vh-3.5rem)] max-w-6xl items-center justify-center px-4 py-12">
-      <AuthForm mode="signup" />
+      <Suspense>
+        <AuthForm mode="signup" />
+      </Suspense>
     </div>
   );
 }

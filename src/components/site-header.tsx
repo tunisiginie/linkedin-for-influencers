@@ -27,6 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { roleHome } from "@/lib/role";
 import type { Profile } from "@/lib/types";
 
 function initials(name: string | null): string {
@@ -81,6 +82,11 @@ export function SiteHeader({
     router.push(q.trim() ? `/search?q=${encodeURIComponent(q.trim())}` : "/search");
   }
 
+  // Signed-in users get their role's own home surface; signed-out visitors
+  // get the public landing page.
+  const homeHref = profile ? roleHome(profile.account_type) : "/";
+  const homeActive = pathname === "/" || pathname === homeHref;
+
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 px-4">
@@ -106,7 +112,7 @@ export function SiteHeader({
         </form>
 
         <nav className="ml-auto flex items-center">
-          <NavLink href="/" icon={Home} label="Home" active={pathname === "/"} />
+          <NavLink href={homeHref} icon={Home} label="Home" active={homeActive} />
           <NavLink
             href="/search"
             icon={Users}

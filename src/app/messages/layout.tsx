@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MessagesShell } from "@/components/messages-shell";
 import { getConversationsForUser, getOrgIdForUser } from "@/lib/queries";
-import { getMyClaimedCreator, getProfile, requireUser } from "@/lib/auth";
+import { getProfile, getRole, requireUser } from "@/lib/auth";
 import { MessageSquare } from "lucide-react";
 
 function initials(name: string): string {
@@ -11,8 +11,11 @@ function initials(name: string): string {
 
 export default async function MessagesLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
-  const [profile, myCreator] = await Promise.all([getProfile(), getMyClaimedCreator()]);
-  const accountType = myCreator ? "creator" : "sponsor";
+  const [profile, role] = await Promise.all([getProfile(), getRole()]);
+  // Driven by the declared role, not claim status — a creator who hasn't
+  // claimed a profile yet still has an empty creator-style inbox, not a
+  // sponsor one.
+  const accountType = role === "creator" ? "creator" : "sponsor";
   const conversations = await getConversationsForUser(user.id, accountType);
 
   // A sponsor with no org yet just hasn't messaged anyone.

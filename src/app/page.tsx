@@ -1,163 +1,83 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LinkButton } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CreatorCard } from "@/components/creator-card";
-import { getCategories, getFeaturedCreators } from "@/lib/queries";
-import { getMyClaimedCreator, getProfile } from "@/lib/auth";
-import { isSupabaseConfigured } from "@/lib/supabase/client";
-import { ResolvedIcon } from "@/lib/icon-map";
-import { ArrowRight, Search, Sparkles } from "lucide-react";
-
-function initials(name: string | null): string {
-  if (!name) return "?";
-  return name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
-}
+import { Card, CardContent } from "@/components/ui/card";
+import { getProfile, roleHome } from "@/lib/auth";
+import { BadgeCheck, Search, Sparkles, Users } from "lucide-react";
 
 export default async function HomePage() {
-  const [profile, creator, categories, featured] = await Promise.all([
-    getProfile(),
-    getMyClaimedCreator(),
-    getCategories(),
-    getFeaturedCreators(9),
-  ]);
+  const profile = await getProfile();
+  if (profile) redirect(roleHome(profile.account_type));
 
   return (
-    <div className="mx-auto grid max-w-6xl grid-cols-1 gap-4 px-4 py-6 lg:grid-cols-[240px_1fr_280px]">
-      {/* Left rail */}
-      <div className="hidden flex-col gap-4 lg:flex">
-        <Card>
-          <CardContent className="px-4 pt-2">
-            {profile ? (
-              <Link href="/dashboard" className="flex items-center gap-3">
-                <Avatar className="size-11">
-                  <AvatarImage src={profile.photo_url ?? undefined} alt={profile.full_name ?? ""} />
-                  <AvatarFallback>{initials(profile.full_name)}</AvatarFallback>
-                </Avatar>
-                <div className="min-w-0">
-                  <div className="truncate font-semibold">{profile.full_name ?? "Your account"}</div>
-                  <div className="text-xs text-muted-foreground capitalize">{profile.account_type}</div>
-                </div>
-              </Link>
-            ) : (
-              <div className="space-y-2 py-1">
-                <p className="text-sm text-muted-foreground">
-                  Join to message creators, save talent lists, and claim your page.
-                </p>
-                <LinkButton href="/signup" size="sm" className="w-full">
-                  Get started
-                </LinkButton>
-              </div>
-            )}
-            {profile && !creator && profile.account_type === "creator" ? (
-              <LinkButton href="/claim" variant="outline" size="sm" className="mt-3 w-full">
-                Claim your page
-              </LinkButton>
-            ) : null}
-          </CardContent>
-        </Card>
+    <div className="mx-auto flex max-w-4xl flex-col items-center px-4 py-16 text-center sm:py-24">
+      <span className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
+        <Sparkles className="size-3.5 text-primary" /> Transparent ROI scores, not guesswork
+      </span>
+      <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl">
+        The professional network for <span className="text-primary">creators</span> and the{" "}
+        <span className="text-primary">sponsors</span> who back them.
+      </h1>
+      <p className="mt-4 max-w-xl text-balance text-muted-foreground sm:text-lg">
+        One side gets a profile that proves their worth with real metrics. The other gets a
+        faster way to find creators who actually deliver.
+      </p>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Browse categories</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-0.5 px-2">
-            {categories.map((c) => (
-              <Link
-                key={c.id}
-                href={`/search?category=${c.slug}`}
-                className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-foreground/90 hover:bg-accent"
-              >
-                <ResolvedIcon iconName={c.icon} className="size-4 text-muted-foreground" />
-                {c.name}
-              </Link>
-            ))}
-          </CardContent>
-        </Card>
+      <div className="mt-10 grid w-full max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
+        <Link
+          href="/creator"
+          className="group flex flex-col items-start gap-3 rounded-(--radius-2xl) border border-border bg-card p-6 text-left shadow-[var(--shadow-sm)] transition-all hover:shadow-[var(--shadow-md)] hover:-translate-y-0.5"
+        >
+          <span className="flex size-11 items-center justify-center rounded-(--radius-lg) bg-primary/10 text-primary">
+            <BadgeCheck className="size-6" />
+          </span>
+          <span className="text-lg font-semibold">I&apos;m a Creator</span>
+          <span className="text-sm text-muted-foreground">
+            Claim your auto-generated profile, see your ROI score, and get discovered by
+            sponsors who already know what you deliver.
+          </span>
+          <span className="mt-auto text-sm font-medium text-primary group-hover:underline">
+            Go to creator home →
+          </span>
+        </Link>
+
+        <Link
+          href="/sponsor"
+          className="group flex flex-col items-start gap-3 rounded-(--radius-2xl) border border-border bg-card p-6 text-left shadow-[var(--shadow-sm)] transition-all hover:shadow-[var(--shadow-md)] hover:-translate-y-0.5"
+        >
+          <span className="flex size-11 items-center justify-center rounded-(--radius-lg) bg-primary/10 text-primary">
+            <Search className="size-6" />
+          </span>
+          <span className="text-lg font-semibold">I&apos;m a Sponsor</span>
+          <span className="text-sm text-muted-foreground">
+            Search the directory by category, platform, and ROI score, then message creators
+            directly.
+          </span>
+          <span className="mt-auto text-sm font-medium text-primary group-hover:underline">
+            Go to sponsor home →
+          </span>
+        </Link>
       </div>
 
-      {/* Main */}
-      <div className="flex flex-col gap-4">
-        <Card className="bg-gradient-to-br from-primary/10 via-card to-card">
-          <CardContent className="flex flex-col gap-3 px-5 py-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-xl font-semibold">Find creators sponsors can trust.</h1>
-              <p className="mt-1 max-w-md text-sm text-muted-foreground">
-                Every profile carries a transparent ROI score built from real
-                platform metrics — no more guessing who actually delivers.
-              </p>
-            </div>
-            <LinkButton href="/search">
-              <Search /> Search talent <ArrowRight />
-            </LinkButton>
-          </CardContent>
-        </Card>
-
-        {!isSupabaseConfigured() ? (
-          <Card className="border-dashed">
-            <CardContent className="px-4 py-3 text-sm text-muted-foreground">
-              Supabase isn&apos;t configured yet, so this is running with empty
-              data. Add your keys to <code>.env.local</code> and run{" "}
-              <code>npm run seed</code> to see real creator profiles here.
-            </CardContent>
-          </Card>
-        ) : null}
-
-        <div className="flex items-center justify-between">
-          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground">
-            <Sparkles className="size-4" /> Top-scoring creators
-          </h2>
-          <Link href="/search?sort=roi" className="text-sm text-primary hover:underline">
-            See all
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {featured.map((c) => (
-            <CreatorCard key={c.id} creator={c} />
-          ))}
-          {featured.length === 0 ? (
-            <Card className="sm:col-span-2">
-              <CardContent className="px-4 py-8 text-center text-sm text-muted-foreground">
-                No creators yet. Run <code>npm run seed</code> against a configured
-                Supabase project to populate the directory.
-              </CardContent>
-            </Card>
-          ) : null}
-        </div>
+      <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row">
+        <LinkButton href="/signup" size="lg">
+          Create an account
+        </LinkButton>
+        <LinkButton href="/login" variant="ghost" size="lg">
+          Log in
+        </LinkButton>
       </div>
 
-      {/* Right rail */}
-      <div className="hidden flex-col gap-4 lg:flex">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">For sponsors</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 px-4 text-sm text-muted-foreground">
-            <p>
-              Filter by category, platform, follower range, and ROI score —
-              then message creators and draft paperwork with Claude.
-            </p>
-            <LinkButton href="/search" variant="outline" size="sm" className="w-full">
-              Open talent search
-            </LinkButton>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">For creators</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 px-4 text-sm text-muted-foreground">
-            <p>
-              Claim your auto-generated profile to edit it, see your ROI
-              breakdown, and control who can contact you.
-            </p>
-            <LinkButton href="/claim" variant="outline" size="sm" className="w-full">
-              Claim your page
-            </LinkButton>
-          </CardContent>
-        </Card>
-      </div>
+      <Card className="mt-16 w-full max-w-2xl text-left">
+        <CardContent className="flex items-start gap-3 px-5 py-4">
+          <Users className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            You can browse either side without an account — the buttons above lead straight
+            there. Sign up when you&apos;re ready to claim a profile, message someone, or save a
+            list.
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -9,10 +9,16 @@ import type {
   ContactPreferences,
   Conversation,
   CreatorDocument,
+  CreatorMatch,
+  CreatorPreferences,
   CreatorProfile,
   CreatorReach,
   CreatorSummary,
   Message,
+  NolanDocument,
+  NolanMessage,
+  NolanThread,
+  OrgProduct,
   Platform,
   TalentList,
 } from "@/lib/types";
@@ -20,7 +26,7 @@ import type {
 const CREATOR_SUMMARY_SELECT = `
   *,
   roi_scores(score, grade),
-  creator_categories(confidence, categories(slug, name, icon)),
+  creator_categories(category_id, confidence, categories(slug, name, icon)),
   creator_accounts(*, platforms(slug, name, icon))
 `;
 
@@ -161,7 +167,7 @@ export async function getCreatorBySlug(slug: string): Promise<CreatorProfile | n
       `
       *,
       roi_scores(*),
-      creator_categories(confidence, categories(slug, name, icon)),
+      creator_categories(category_id, confidence, categories(slug, name, icon)),
       creator_accounts(*, platforms(slug, name, icon), account_metrics(*))
     `,
     )
@@ -191,7 +197,7 @@ export async function getCreatorById(id: string): Promise<CreatorProfile | null>
       `
       *,
       roi_scores(*),
-      creator_categories(confidence, categories(slug, name, icon)),
+      creator_categories(category_id, confidence, categories(slug, name, icon)),
       creator_accounts(*, platforms(slug, name, icon), account_metrics(*))
     `,
     )
@@ -358,4 +364,124 @@ export async function isCreatorContactable(creatorId: string): Promise<boolean> 
     .maybeSingle();
   if (!data) return true;
   return !data.opt_out_at && !data.deletion_requested_at;
+}
+
+/** What a creator is open to, or null if they haven't set preferences yet
+ * (not the same as "closed" — see the DEFAULT_CREATOR_PREFERENCES fallback
+ * callers should render when this is null). */
+export async function getCreatorPreferences(
+  creatorId: string,
+): Promise<CreatorPreferences | null> {
+  if (!isSupabaseConfigured()) return null;
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("creator_preferences")
+    .select("*")
+    .eq("creator_id", creatorId)
+    .maybeSingle();
+  return data;
+}
+
+export async function getOrgProducts(orgId: string): Promise<OrgProduct[]> {
+  if (!isSupabaseConfigured()) return [];
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("org_products")
+    .select("*")
+    .eq("org_id", orgId)
+    .order("created_at", { ascending: false });
+  return (data as OrgProduct[]) ?? [];
+}
+
+export async function getOrgProductById(id: string): Promise<OrgProduct | null> {
+  if (!isSupabaseConfigured()) return null;
+  const supabase = await createClient();
+  const { data } = await supabase.from("org_products").select("*").eq("id", id).maybeSingle();
+  return (data as OrgProduct) ?? null;
+}
+
+/** Ranked creator matches for a sponsor's product, via the
+ * match_creators_for_product RPC (see supabase/schema.sql) — deliberately a
+ * real SQL query rather than searchCreators(), which filters/sorts in JS
+ * after pagination and can't rank a whole table. Attaches full CreatorSummary
+ * rows (including reach) so the UI can render CreatorCard directly. */
+export async function getMatchesForProduct(
+  productId: string,
+  limit = 20,
+): Promise<{ match: CreatorMatch; creator: CreatorSummary }[]> {
+  if (!isSupabaseConfigured()) return [];
+  const supabase = await createClient();
+  const { data: matches } = await supabase.rpc("match_creators_for_product", {
+    target_product: productId,
+    result_limit: limit,
+  });
+  const matchRows = (matches as CreatorMatch[]) ?? [];
+  if (matchRows.length === 0) return [];
+
+  const { data: creatorRows } = await supabase
+    .from("creators")
+    .select(CREATOR_SUMMARY_SELECT)
+    .in(
+      "id",
+      matchRows.map((m) => m.creator_id),
+    );
+  const withoutReach = (creatorRows as unknown as Omit<CreatorSummary, "reach">[]) ?? [];
+  const withReach = await attachReach(supabase, withoutReach);
+  const creatorById = new Map(withReach.map((c) => [c.id, c]));
+
+  return matchRows
+    .map((match) => {
+      const creator = creatorById.get(match.creator_id);
+      return creator ? { match, creator } : null;
+    })
+    .filter((row): row is { match: CreatorMatch; creator: CreatorSummary } => row !== null);
+}
+
+// ---- Nolan (creator-facing AI advisor) ----
+
+export async function getNolanThreads(creatorId: string): Promise<NolanThread[]> {
+  if (!isSupabaseConfigured()) return [];
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("nolan_threads")
+    .select("*")
+    .eq("creator_id", creatorId)
+    .order("updated_at", { ascending: false });
+  return (data as NolanThread[]) ?? [];
+}
+
+/** Null both when the thread doesn't exist and when the caller isn't its
+ * owner — RLS filters the row out either way; callers should treat both as
+ * 404, same convention as getConversationDetail. */
+export async function getNolanThread(threadId: string): Promise<NolanThread | null> {
+  if (!isSupabaseConfigured()) return null;
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("nolan_threads")
+    .select("*")
+    .eq("id", threadId)
+    .maybeSingle();
+  return (data as NolanThread) ?? null;
+}
+
+export async function getNolanMessages(threadId: string): Promise<NolanMessage[]> {
+  if (!isSupabaseConfigured()) return [];
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("nolan_messages")
+    .select("*")
+    .eq("thread_id", threadId)
+    .order("created_at", { ascending: true });
+  return (data as NolanMessage[]) ?? [];
+}
+
+export async function getNolanDocuments(threadId: string): Promise<NolanDocument[]> {
+  if (!isSupabaseConfigured()) return [];
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("nolan_documents")
+    .select("*")
+    .eq("thread_id", threadId)
+    .order("created_at", { ascending: false });
+  return (data as NolanDocument[]) ?? [];
 }

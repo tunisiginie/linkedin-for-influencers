@@ -97,6 +97,19 @@ export interface ContactPreferences {
   updated_at: string;
 }
 
+export interface CreatorPreferences {
+  creator_id: string;
+  open_to_sponsorships: boolean;
+  product_types: string[];
+  products_i_use: string[];
+  dream_brands: string[];
+  excluded_topics: string[];
+  content_formats: string[];
+  min_rate_cents: number | null;
+  rate_notes: string | null;
+  updated_at: string;
+}
+
 export type ContactSource = "public_profile" | "self_provided";
 
 export interface CreatorContact {
@@ -205,6 +218,79 @@ export interface SavedSearch {
   user_id: string | null;
   name: string;
   query: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface OrgProduct {
+  id: string;
+  org_id: string;
+  name: string;
+  description: string | null;
+  category_id: string | null;
+  topics: string[];
+  target_audience: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreatorMatch {
+  creator_id: string;
+  match_score: number;
+  category_match: boolean;
+  topic_overlap_count: number;
+}
+
+// ---- Nolan (creator-facing AI advisor) ----
+
+export type NolanRole = "user" | "assistant";
+
+export interface NolanThread {
+  id: string;
+  creator_id: string;
+  title: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NolanMessage {
+  id: string;
+  thread_id: string;
+  role: NolanRole;
+  body: string;
+  created_at: string;
+}
+
+export type ContractSeverity = "info" | "caution" | "warning";
+
+export interface ContractRedFlag {
+  clause: string;
+  severity: ContractSeverity;
+  explanation: string;
+}
+
+/** Structured extraction from a contract, produced by /api/nolan/analyze via
+ * output_config.format. Plain-language, never a legal conclusion — see
+ * NOLAN_SYSTEM_PROMPT in src/lib/claude.ts. */
+export interface ContractReview {
+  summary: string;
+  parties: string[];
+  term: string | null;
+  compensation: string | null;
+  deliverables: string[];
+  exclusivity: string | null;
+  usageRights: string | null;
+  ipAssignment: string | null;
+  termination: string | null;
+  redFlags: ContractRedFlag[];
+}
+
+export interface NolanDocument {
+  id: string;
+  thread_id: string;
+  storage_path: string;
+  file_name: string;
+  media_type: string;
+  review: ContractReview | null;
   created_at: string;
 }
 

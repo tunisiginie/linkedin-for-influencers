@@ -91,6 +91,15 @@ export async function verifyBioTokenClaim(formData: FormData): Promise<VerifyRes
     .is("claimed_by", null);
   if (creatorError) return { ok: false, error: creatorError.message };
 
+  // A successful claim is proof of being a creator — fix up account_type if
+  // it's stale (e.g. defaulted to "sponsor" at signup). Never downgrades an
+  // admin.
+  await admin
+    .from("profiles")
+    .update({ account_type: "creator" })
+    .eq("id", user.id)
+    .eq("account_type", "sponsor");
+
   revalidatePath("/settings");
   revalidatePath(`/claim/${creatorId}`);
   return { ok: true };
@@ -106,6 +115,11 @@ export async function finalizeYoutubeClaim(creatorId: string, userId: string): P
     .update({ claimed_by: userId, claimed_at: new Date().toISOString() })
     .eq("id", creatorId)
     .is("claimed_by", null);
+  await admin
+    .from("profiles")
+    .update({ account_type: "creator" })
+    .eq("id", userId)
+    .eq("account_type", "sponsor");
   await admin.from("claim_requests").insert({
     creator_id: creatorId,
     user_id: userId,

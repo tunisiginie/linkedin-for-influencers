@@ -9,7 +9,7 @@ import { RoiBadge } from "@/components/roi-badge";
 import { RoiBreakdown, RoiBreakdownLegend } from "@/components/charts/roi-breakdown";
 import { GrowthChart } from "@/components/charts/growth-chart";
 import { ResolvedIcon } from "@/lib/icon-map";
-import { getCreatorBySlug, isCreatorContactable } from "@/lib/queries";
+import { getCreatorBySlug, getCreatorPreferences, isCreatorContactable } from "@/lib/queries";
 import { getMyClaimedCreator, getUser } from "@/lib/auth";
 import { startConversation } from "@/lib/actions/conversations";
 import { BadgeCheck, ExternalLink, MessageSquare } from "lucide-react";
@@ -39,7 +39,10 @@ export default async function CreatorProfilePage({
 
   if (!creator) notFound();
 
-  const contactable = await isCreatorContactable(creator.id);
+  const [contactable, sponsorshipPrefs] = await Promise.all([
+    isCreatorContactable(creator.id),
+    getCreatorPreferences(creator.id),
+  ]);
   const isOwner = creator.claimed_by !== null && creator.claimed_by === user?.id;
   const canClaim = !creator.claimed_by && !myCreator && user;
 
@@ -166,6 +169,84 @@ export default async function CreatorProfilePage({
                 {creator.bio}
               </CardContent>
             </Card>
+          ) : null}
+
+          {sponsorshipPrefs ? (
+            sponsorshipPrefs.open_to_sponsorships ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Sponsorship fit</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-3 px-4">
+                  {sponsorshipPrefs.product_types.length > 0 ? (
+                    <div>
+                      <p className="mb-1 text-xs text-muted-foreground">Open to promoting</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {sponsorshipPrefs.product_types.map((t) => (
+                          <Badge key={t} variant="secondary">
+                            {t}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  {sponsorshipPrefs.dream_brands.length > 0 ? (
+                    <div>
+                      <p className="mb-1 text-xs text-muted-foreground">Dream brands</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {sponsorshipPrefs.dream_brands.map((t) => (
+                          <Badge key={t} variant="outline">
+                            {t}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  {sponsorshipPrefs.content_formats.length > 0 ? (
+                    <div>
+                      <p className="mb-1 text-xs text-muted-foreground">Formats produced</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {sponsorshipPrefs.content_formats.map((t) => (
+                          <Badge key={t} variant="secondary">
+                            {t}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  {sponsorshipPrefs.excluded_topics.length > 0 ? (
+                    <div>
+                      <p className="mb-1 text-xs text-muted-foreground">Won&apos;t promote</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {sponsorshipPrefs.excluded_topics.map((t) => (
+                          <Badge key={t} variant="destructive">
+                            {t}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  {sponsorshipPrefs.min_rate_cents != null ? (
+                    <p className="text-sm text-muted-foreground">
+                      Starting around{" "}
+                      <span className="font-medium text-foreground">
+                        ${Math.round(sponsorshipPrefs.min_rate_cents / 100).toLocaleString()}
+                      </span>{" "}
+                      per deal.
+                    </p>
+                  ) : null}
+                  {sponsorshipPrefs.rate_notes ? (
+                    <p className="text-sm text-muted-foreground">{sponsorshipPrefs.rate_notes}</p>
+                  ) : null}
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="border-dashed">
+                <CardContent className="px-4 py-3 text-sm text-muted-foreground">
+                  Not currently open to new sponsorships.
+                </CardContent>
+              </Card>
+            )
           ) : null}
 
           <Card>

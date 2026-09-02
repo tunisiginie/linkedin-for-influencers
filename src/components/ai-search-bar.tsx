@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sparkles } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface AiFilters {
   q?: string;
@@ -18,7 +19,7 @@ interface AiFilters {
   sort?: string;
 }
 
-export function AiSearchBar() {
+export function AiSearchBar({ size = "default" }: { size?: "default" | "lg" }) {
   const router = useRouter();
   const [prompt, setPrompt] = useState("");
   const [isPending, setIsPending] = useState(false);
@@ -60,18 +61,25 @@ export function AiSearchBar() {
     }
   }
 
+  const isLarge = size === "lg";
+
   return (
-    <form onSubmit={handleAsk} className="mb-4 flex gap-2">
+    <form onSubmit={handleAsk} className={cn("flex gap-2", isLarge ? "gap-3" : "mb-4")}>
       <div className="relative flex-1">
-        <Sparkles className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-primary" />
+        <Sparkles
+          className={cn(
+            "pointer-events-none absolute top-1/2 -translate-y-1/2 text-primary",
+            isLarge ? "left-4 size-5" : "left-2.5 size-4",
+          )}
+        />
         <Input
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="Ask Claude, e.g. 'fitness creators under 500k subs who are growing fast'"
-          className="pl-8"
+          className={cn(isLarge ? "h-12 rounded-(--radius-xl) pl-11 text-base shadow-[var(--shadow-md)]" : "pl-8")}
         />
       </div>
-      <Button type="submit" variant="outline" disabled={isPending}>
+      <Button type="submit" variant="outline" size={isLarge ? "xl" : "default"} disabled={isPending}>
         {isPending ? "Thinking..." : "Ask"}
       </Button>
     </form>

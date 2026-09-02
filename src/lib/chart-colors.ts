@@ -1,3 +1,6 @@
+import { useSyncExternalStore } from "react";
+import { useTheme } from "next-themes";
+
 // Validated categorical palette (dataviz skill § references/palette.md).
 // Fixed hue order — never cycled, never re-ordered by rank — so a given ROI
 // component always reads as the same color everywhere it appears. Passes
@@ -51,4 +54,32 @@ export function statusForGrade(grade: "A" | "B" | "C" | "D" | "F" | null): keyof
     default:
       return "critical";
   }
+}
+
+const emptySubscribe = () => () => {};
+
+/** True once the client has hydrated. Implemented with useSyncExternalStore
+ * (server snapshot always false, client snapshot always true) rather than
+ * the classic useState+useEffect "mounted" pattern — that pattern trips
+ * react-hooks/set-state-in-effect, and this is the pattern React's own docs
+ * point to instead for exactly this SSR-safe-value case. */
+function useHasMounted(): boolean {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false,
+  );
+}
+
+/** Whether the resolved theme is dark, stable across hydration.
+ * next-themes can resolve the client's *real* theme before first paint (via
+ * a blocking inline script), but the server has no such signal — a
+ * component that branches colors on `resolvedTheme` during its very first
+ * client render mismatches the server-rendered HTML. This defers to the
+ * server's default (light) until hydration completes, then swaps — a
+ * normal post-hydration update, not a mismatch. */
+export function useIsDarkTheme(): boolean {
+  const { resolvedTheme } = useTheme();
+  const hasMounted = useHasMounted();
+  return hasMounted && resolvedTheme === "dark";
 }

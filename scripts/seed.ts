@@ -106,7 +106,7 @@ function genSeries(
   const rows = [];
 
   let followers = baseFollowers;
-  let totalViews = baseFollowers * (8 + rand() * 12);
+  let totalViews = Math.round(baseFollowers * (8 + rand() * 12));
   let uploadCount = Math.round(20 + rand() * 200);
 
   const dailyGrowthRate =

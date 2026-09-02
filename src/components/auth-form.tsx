@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { roleHome } from "@/lib/role";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,10 +27,14 @@ import type { AccountType } from "@/lib/types";
 
 export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const presetRole = searchParams.get("role");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [accountType, setAccountType] = useState<AccountType>("sponsor");
+  const [accountType, setAccountType] = useState<AccountType>(
+    presetRole === "creator" ? "creator" : "sponsor",
+  );
   const [pending, setPending] = useState(false);
 
   const isSignup = mode === "signup";
@@ -54,11 +59,28 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
         });
         if (error) throw error;
         toast.success("Account created. Check your email if confirmation is on.");
+        // Creators land in the claim flow — that's their onboarding, more
+        // specific than the generic role home. Sponsors go straight home.
+        router.push(accountType === "creator" ? "/claim" : roleHome("sponsor"));
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        // Route by the account's actual declared role, not local form state
+        // (the role selector only shows on signup).
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        let destination = "/";
+        if (user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("account_type")
+            .eq("id", user.id)
+            .maybeSingle();
+          destination = roleHome((profile?.account_type as AccountType | undefined) ?? null);
+        }
+        router.push(destination);
       }
-      router.push(isSignup && accountType === "creator" ? "/claim" : "/");
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong.");

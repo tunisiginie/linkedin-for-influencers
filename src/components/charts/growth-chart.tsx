@@ -1,8 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useTheme } from "next-themes";
-import { SEQUENTIAL_DARK, SEQUENTIAL_LIGHT } from "@/lib/chart-colors";
+import { SEQUENTIAL_DARK, SEQUENTIAL_LIGHT, useIsDarkTheme } from "@/lib/chart-colors";
 
 export interface GrowthPoint {
   date: string; // ISO date
@@ -27,8 +26,7 @@ const PAD_BOTTOM = 24;
  * line, ~10% opacity area wash, hairline recessive gridlines, one sequential
  * hue (the app's primary blue) since there's only one series to identify. */
 export function GrowthChart({ data, label }: { data: GrowthPoint[]; label: string }) {
-  const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
+  const isDark = useIsDarkTheme();
   const color = isDark ? SEQUENTIAL_DARK : SEQUENTIAL_LIGHT;
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 

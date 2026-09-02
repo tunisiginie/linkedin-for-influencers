@@ -1,7 +1,6 @@
 "use client";
 
-import { useTheme } from "next-themes";
-import { categoricalColor } from "@/lib/chart-colors";
+import { categoricalColor, useIsDarkTheme } from "@/lib/chart-colors";
 import type { RoiComponents } from "@/lib/types";
 
 const COMPONENT_LABELS: { key: keyof RoiComponents; label: string; blurb: string }[] = [
@@ -19,8 +18,7 @@ const COMPONENT_LABELS: { key: keyof RoiComponents; label: string; blurb: string
  * This breakdown *is* the product's explainability story: a sponsor should
  * be able to see exactly why a creator scored what they did. */
 export function RoiBreakdown({ components }: { components: RoiComponents }) {
-  const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
+  const isDark = useIsDarkTheme();
 
   return (
     <div className="space-y-3">
