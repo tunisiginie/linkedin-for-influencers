@@ -2,7 +2,6 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { CLAUDE_MODEL, PLATFORM_SYSTEM_PROMPT, getClaudeClient } from "@/lib/claude";
 import { getCreatorById, getOrgIdForUser, getOrganizationById } from "@/lib/queries";
-import type { RoiComponents } from "@/lib/types";
 
 /** Drafts a first-outreach message from a sponsor to a creator. Returns a
  * plain draft the sponsor edits before sending — nothing here ever sends a
@@ -32,9 +31,13 @@ export async function POST(request: NextRequest) {
   const orgId = await getOrgIdForUser(user.id);
   const org = orgId ? await getOrganizationById(orgId) : null;
 
-  const components = (creator.roi_scores?.components ?? {}) as Partial<RoiComponents>;
   const primaryAccount = creator.creator_accounts.find((a) => a.is_primary) ?? creator.creator_accounts[0];
   const latestMetrics = primaryAccount?.account_metrics.at(-1);
+  const topReasons = (creator.roi_scores?.reasons ?? [])
+    .filter((r) => r.direction === "positive")
+    .slice(0, 2)
+    .map((r) => r.label)
+    .join("; ");
 
   const contextLines = [
     `Creator: ${creator.display_name}`,
@@ -44,7 +47,7 @@ export async function POST(request: NextRequest) {
       ? `Content categories: ${creator.creator_categories.map((c) => c.categories?.name).filter(Boolean).join(", ")}`
       : null,
     creator.roi_scores?.score != null
-      ? `ROI score: ${creator.roi_scores.score}/1000 (grade ${creator.roi_scores.grade}). Strongest components: reach ${components.reach ?? "n/a"}, engagement ${components.engagement ?? "n/a"}, trajectory ${components.trajectory ?? "n/a"}.`
+      ? `ROI score: ${creator.roi_scores.score}/1000 (grade ${creator.roi_scores.grade}).${topReasons ? ` Strongest factors: ${topReasons}.` : ""}`
       : "ROI score: not yet computed (insufficient history).",
     primaryAccount
       ? `Primary platform: ${primaryAccount.platforms?.name}, @${primaryAccount.handle}, ${latestMetrics?.followers ?? "unknown"} followers.`

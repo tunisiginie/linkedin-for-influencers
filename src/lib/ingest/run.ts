@@ -1,8 +1,9 @@
 // Ingestion orchestrator: refreshes the stalest N creator_accounts, routing
 // each to the right PlatformAdapter (real YouTube, seeded Instagram/TikTok),
-// writes a new account_metrics snapshot, then recomputes ROI for every
-// touched creator. Used by the cron route (src/app/api/cron/refresh) and
-// runnable standalone via `npm run ingest`.
+// writes a new account_metrics snapshot and recent content-item titles,
+// recomputes relevance signals (ROI v2 Phase B), then recomputes ROI for
+// every touched creator. Used by the cron route (src/app/api/cron/refresh)
+// and runnable standalone via `npm run ingest`.
 
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -10,7 +11,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PlatformAdapter } from "./types";
 import { YouTubeAdapter } from "./youtube";
 import { SeededAdapter } from "./seeded";
+import { recomputeContentSignals } from "@/lib/roi/content-signals";
 import { recomputeRoiScores } from "@/lib/roi/recompute";
+
+/** How many recent post/video titles to pull per account per run — enough
+ * to ground topical-authority scoring without meaningfully adding to
+ * per-account API cost. */
+const RECENT_CONTENT_LIMIT = 10;
 
 export interface RefreshOptions {
   /** Caps how many accounts one run touches. 200 YouTube accounts x ~3
@@ -117,6 +124,37 @@ export async function refreshStaleAccounts(
     } catch (err) {
       console.error(`ingest: failed to refresh account ${account.id}:`, err);
       failed += 1;
+      continue;
+    }
+
+    // Best-effort: recent content titles ground topical-authority scoring
+    // (ROI v2 Phase B). A failure here shouldn't undo the metrics write
+    // above, so it's a separate try/catch and never bumps `failed`.
+    try {
+      const recent = await adapter.fetchRecentContent(account.external_id, RECENT_CONTENT_LIMIT);
+      if (recent.length > 0) {
+        const { error: contentError } = await supabase.from("creator_content_items").upsert(
+          recent.map((item) => ({
+            creator_account_id: account.id,
+            external_id: item.externalId,
+            title: item.title,
+            published_at: item.publishedAt,
+          })),
+          { onConflict: "creator_account_id,external_id" },
+        );
+        if (contentError) throw new Error(contentError.message);
+      }
+    } catch (err) {
+      console.warn(`ingest: failed to fetch recent content for account ${account.id}:`, err);
+    }
+  }
+
+  if (touchedCreatorIds.size > 0) {
+    // Relevance signals first, so this pass's ROI recompute sees them.
+    try {
+      await recomputeContentSignals(supabase, Array.from(touchedCreatorIds));
+    } catch (err) {
+      console.error("ingest: recomputeContentSignals failed (continuing to ROI recompute):", err);
     }
   }
 

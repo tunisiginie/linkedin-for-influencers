@@ -375,14 +375,81 @@ create table if not exists public.roi_scores (
   score        int, -- null until >= 30 days of history exist
   grade        text, -- A | B | C | D | F
   components   jsonb not null default '{}'::jsonb,
-  algo_version text not null default 'v1',
+  confidence   numeric, -- 0-1 overall measurement confidence; see src/lib/roi/score.ts
+  reasons      jsonb not null default '[]'::jsonb, -- top factors helping/hurting the score
+  cohort_key   text, -- e.g. "fitness::micro" — the peer cohort this score was benchmarked against
+  algo_version text not null default 'v2',
   computed_at  timestamptz not null default now()
 );
+
+-- Idempotent add-columns for a database that already has an older roi_scores
+-- (e.g. from before v2) — `create table if not exists` above is a no-op once
+-- the table exists, so new columns need an explicit path too.
+alter table public.roi_scores add column if not exists confidence numeric;
+alter table public.roi_scores add column if not exists reasons jsonb not null default '[]'::jsonb;
+alter table public.roi_scores add column if not exists cohort_key text;
 
 alter table public.roi_scores enable row level security;
 
 drop policy if exists "ROI scores are public-read" on public.roi_scores;
 create policy "ROI scores are public-read" on public.roi_scores
+  for select using (true);
+
+-- =========================================================================
+-- CREATOR_CONTENT_ITEMS  (ROI v2 Phase B — recent post/video titles, used
+-- to ground topical-authority scoring in what a creator actually makes
+-- rather than bio text alone. Upserted by the ingest orchestrator
+-- (src/lib/ingest/run.ts) via each PlatformAdapter's fetchRecentContent();
+-- not fetched on every score recompute.
+-- =========================================================================
+create table if not exists public.creator_content_items (
+  id                 uuid primary key default gen_random_uuid(),
+  creator_account_id uuid not null references public.creator_accounts (id) on delete cascade,
+  external_id        text not null,
+  title              text not null,
+  published_at       timestamptz,
+  created_at         timestamptz not null default now(),
+  unique (creator_account_id, external_id)
+);
+
+create index if not exists creator_content_items_account_idx
+  on public.creator_content_items (creator_account_id, published_at desc);
+
+alter table public.creator_content_items enable row level security;
+
+drop policy if exists "Creator content items are public-read" on public.creator_content_items;
+create policy "Creator content items are public-read" on public.creator_content_items
+  for select using (true);
+
+-- =========================================================================
+-- CREATOR_CONTENT_SIGNALS  (ROI v2 Phase B — LLM-derived signals for the
+-- ROI score's Relevance & authority pillar. Scope note: the framework's
+-- Relevance & authority pillar has four variables — content relevance,
+-- brand fit, topical authority, production quality. Content relevance and
+-- brand fit are SPONSOR-specific (fit with one sponsor's product), so they
+-- live in match_creators_for_product, not here. Topical authority is
+-- creator-absolute and genuinely gradeable from data the platform has (bio,
+-- headline, category, recent content titles) — it's the only column below.
+-- Production quality (needs real video/thumbnail inspection — no adapter
+-- fetches thumbnails today) and sentiment (needs actual comment TEXT — no
+-- adapter fetches that, only counts) are deliberately NOT scored yet;
+-- doing so from bio text alone would be exactly the "vague analyst
+-- judgment" the framework warns against rather than a real rubric. See
+-- src/lib/roi/content-signals.ts.
+-- =========================================================================
+create table if not exists public.creator_content_signals (
+  creator_id         uuid primary key references public.creators (id) on delete cascade,
+  topical_authority  int, -- 0-100, null if never scored
+  rationale          text, -- one-sentence justification, for transparency
+  model              text not null,
+  definition_version text not null default 'v1',
+  computed_at        timestamptz not null default now()
+);
+
+alter table public.creator_content_signals enable row level security;
+
+drop policy if exists "Creator content signals are public-read" on public.creator_content_signals;
+create policy "Creator content signals are public-read" on public.creator_content_signals
   for select using (true);
 
 -- =========================================================================

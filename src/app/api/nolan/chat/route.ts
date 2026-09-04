@@ -3,7 +3,6 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { CLAUDE_MODEL, NOLAN_SYSTEM_PROMPT, getClaudeClient } from "@/lib/claude";
 import { getCreatorById, getNolanMessages, getNolanThread, searchCreators } from "@/lib/queries";
-import type { RoiComponents } from "@/lib/types";
 
 /** Nolan's chat endpoint. Streams plain text back to the client and persists
  * both sides of the exchange server-side once the stream ends — the client
@@ -82,7 +81,16 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const components = (creator?.roi_scores?.components ?? {}) as Partial<RoiComponents>;
+  const topPositive = (creator?.roi_scores?.reasons ?? [])
+    .filter((r) => r.direction === "positive")
+    .slice(0, 2)
+    .map((r) => r.label)
+    .join("; ");
+  const topNegative = (creator?.roi_scores?.reasons ?? [])
+    .filter((r) => r.direction === "negative")
+    .slice(0, 2)
+    .map((r) => r.label)
+    .join("; ");
   const primaryAccount =
     creator?.creator_accounts.find((a) => a.is_primary) ?? creator?.creator_accounts[0];
   const latestMetrics = primaryAccount?.account_metrics.at(-1);
@@ -91,7 +99,7 @@ export async function POST(request: NextRequest) {
     ? [
         `You're talking with ${creator.display_name}${creator.headline ? ` (${creator.headline})` : ""}.`,
         creator.roi_scores?.score != null
-          ? `Their ROI score: ${creator.roi_scores.score}/1000 (grade ${creator.roi_scores.grade}). Components — reach ${components.reach ?? "n/a"}, engagement ${components.engagement ?? "n/a"}, consistency ${components.consistency ?? "n/a"}, trajectory ${components.trajectory ?? "n/a"}, tenure ${components.tenure ?? "n/a"}, authenticity ${components.authenticity ?? "n/a"}.`
+          ? `Their ROI score: ${creator.roi_scores.score}/1000 (grade ${creator.roi_scores.grade}, confidence ${creator.roi_scores.confidence != null ? Math.round(creator.roi_scores.confidence * 100) + "%" : "n/a"}).${topPositive ? ` Strongest factors: ${topPositive}.` : ""}${topNegative ? ` Weakest factors: ${topNegative}.` : ""}`
           : "ROI score: not yet computed (needs at least 30 days of metrics history).",
         primaryAccount
           ? `Primary platform: ${primaryAccount.platforms?.name}, @${primaryAccount.handle}, ${latestMetrics?.followers ?? "unknown"} followers.`

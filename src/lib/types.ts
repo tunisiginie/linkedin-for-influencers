@@ -124,21 +124,86 @@ export interface CreatorContact {
 
 export type RoiGrade = "A" | "B" | "C" | "D" | "F";
 
-export interface RoiComponents {
-  reach: number;
-  engagement: number;
-  consistency: number;
-  trajectory: number;
-  tenure: number;
-  authenticity: number;
+// v2 pillars, per the seven-pillar architecture in the ROI scoring framework
+// (docs/reference — see src/lib/roi/score.ts header). "commercial" and "deal"
+// are documented here for forward-compatibility with Phases C/E but carry no
+// live variables yet — a creator's `components` will simply omit them until
+// their data source lands, rather than showing a fabricated 0. "relevance"
+// went live in Phase B (topical authority only — see content-signals.ts).
+export type RoiPillarKey =
+  | "scale"
+  | "attention"
+  | "trust"
+  | "relevance"
+  | "commercial"
+  | "deal"
+  | "governance";
+
+export interface RoiPillarComponent {
+  /** This pillar's own 0-100 composite (post reliability-shrink, and for
+   * "trust", post fraud-signal dampening). */
+  raw: number;
+  /** This creator's renormalized effective weight for this pillar, as a
+   * fraction of the composite (sums to 1 across present pillars) — not the
+   * documented baseline, which includes not-yet-implemented pillars. */
+  weight: number;
+  /** Weighted average reliability (0-1) of the variables behind this
+   * pillar's raw score. */
+  confidence: number;
+}
+
+/** Sparse — only pillars with at least one live variable are present. */
+export type RoiComponents = Partial<Record<RoiPillarKey, RoiPillarComponent>>;
+
+export interface RoiReason {
+  /** Stable machine key, e.g. "strong_watch_time". */
+  code: string;
+  /** Human-readable, e.g. "Strong average watch time vs. category peers". */
+  label: string;
+  pillar: RoiPillarKey;
+  direction: "positive" | "negative";
 }
 
 export interface RoiScore {
   creator_id: string;
   score: number | null;
   grade: RoiGrade | null;
-  components: RoiComponents | Record<string, never>;
+  components: RoiComponents;
+  /** 0-1 overall measurement confidence — weighted-average reliability of
+   * every variable that contributed, further capped when fraud signals
+   * fire. Null alongside a null score. */
+  confidence: number | null;
+  /** Top factors helping and hurting the score, most-influential first. */
+  reasons: RoiReason[];
+  /** e.g. "fitness::micro" — the peer cohort this score was benchmarked
+   * against. Null when there weren't enough peers for a real cohort. */
+  cohort_key: string | null;
   algo_version: string;
+  computed_at: string;
+}
+
+/** One recent post/video title, used to ground topical-authority scoring.
+ * See content-signals.ts for why this is the only content-derived signal
+ * implemented so far (production quality and sentiment need data — real
+ * video/thumbnail inspection and actual comment text — that no adapter
+ * fetches yet). */
+export interface CreatorContentItem {
+  id: string;
+  creator_account_id: string;
+  external_id: string;
+  title: string;
+  published_at: string | null;
+  created_at: string;
+}
+
+export interface CreatorContentSignals {
+  creator_id: string;
+  /** 0-100, or null if never scored (no ANTHROPIC_API_KEY, or nothing to
+   * score against yet). */
+  topical_authority: number | null;
+  rationale: string | null;
+  model: string;
+  definition_version: string;
   computed_at: string;
 }
 

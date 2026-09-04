@@ -333,7 +333,11 @@ export default async function CreatorProfilePage({
             <CardContent className="px-4">
               {hasRoi ? (
                 <>
-                  <RoiBreakdown components={creator.roi_scores!.components as RoiComponents} />
+                  <RoiBreakdown
+                    components={creator.roi_scores!.components as RoiComponents}
+                    confidence={creator.roi_scores!.confidence}
+                    reasons={creator.roi_scores!.reasons}
+                  />
                   <p className="mt-4 text-xs text-muted-foreground">
                     Weighted composite, 0–1000. Every component below is computed from
                     this creator&apos;s own metrics history — nothing here is
@@ -355,7 +359,7 @@ export default async function CreatorProfilePage({
                 <CardTitle className="text-sm">What each component measures</CardTitle>
               </CardHeader>
               <CardContent className="px-4">
-                <RoiBreakdownLegend />
+                <RoiBreakdownLegend components={creator.roi_scores!.components as RoiComponents} />
               </CardContent>
             </Card>
           ) : null}

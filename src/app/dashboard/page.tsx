@@ -121,7 +121,11 @@ export default async function DashboardPage() {
               />
               {creator?.roi_scores?.score != null ? (
                 <div className="mt-4">
-                  <RoiBreakdown components={creator.roi_scores.components as RoiComponents} />
+                  <RoiBreakdown
+                    components={creator.roi_scores.components as RoiComponents}
+                    confidence={creator.roi_scores.confidence}
+                    reasons={creator.roi_scores.reasons}
+                  />
                 </div>
               ) : (
                 <p className="mt-3 text-sm text-muted-foreground">

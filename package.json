@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "seed": "tsx scripts/seed.ts",
+    "recompute": "tsx scripts/recompute.ts",
     "ingest": "tsx src/lib/ingest/run.ts"
   },
   "dependencies": {

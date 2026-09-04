@@ -9,6 +9,7 @@ import { config as loadEnvLocal } from "dotenv";
 loadEnvLocal({ path: ".env.local", override: true });
 
 import { createClient } from "@supabase/supabase-js";
+import { recomputeContentSignals } from "../src/lib/roi/content-signals";
 import { recomputeRoiScores } from "../src/lib/roi/recompute";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -87,6 +88,38 @@ for (const [idx, profile] of Object.entries(VARIETY_OVERRIDES)) {
   CREATOR_SEEDS[Number(idx)].profile = profile;
 }
 
+// Recent content titles (ROI v2 Phase B) — grounds topical-authority
+// scoring. Real ingestion pulls these from each PlatformAdapter's
+// fetchRecentContent(); the seed script writes plausible category-specific
+// titles directly since it bypasses the adapter layer entirely. "bot"
+// creators deliberately get generic, off-topic titles — a good check that
+// Claude's topical-authority rubric actually penalizes them, the same way
+// the fraud/authenticity checks do for their metrics.
+const CATEGORY_TITLES: Record<string, string[]> = {
+  gaming: ["Ranked climb: what actually separates the top 1%", "Patch notes breakdown — what changed and why it matters", "Speedrun route explained frame-by-frame", "Building the perfect loadout for this meta", "Why this boss fight breaks so many players", "Co-op strategy that carries low-elo lobbies"],
+  beauty: ["Skin barrier repair routine, step by step", "Testing viral products so you don't have to", "Color theory for finding your actual undertone", "Budget dupes for the cult-favorite serums", "What derms wish you knew about retinol", "Building a 5-minute routine that still works"],
+  finance: ["Reading a balance sheet in under 10 minutes", "Why dollar-cost averaging beats timing the market", "Tax-advantaged accounts, ranked by priority", "The real math behind compound interest", "Emergency fund sizing for irregular income", "Breaking down this quarter's earnings calls"],
+  fitness: ["Progressive overload explained for beginners", "Fixing your squat depth and knee tracking", "Protein timing — does it actually matter?", "A deload week done right", "Building a program around one barbell", "Recovery metrics that actually predict burnout"],
+  tech: ["Benchmarking the new chipset against last gen", "Teardown: what's actually inside this device", "Why this spec sheet number is misleading", "Setting up a home lab on a budget", "Comparing real-world battery life, not marketing numbers", "The API change nobody's talking about"],
+  food: ["Getting a proper sear without the smoke alarm", "Knife skills that speed up every recipe", "Building a pantry that covers five cuisines", "Why your dough isn't rising and how to fix it", "Braising times explained by cut, not guesswork", "A weeknight dinner in one pan"],
+  travel: ["The route most people get wrong on this trip", "Packing list refined over 40 flights", "Finding the local spot, not the tourist trap", "Budgeting a month abroad without the guesswork", "Visa logistics nobody explains clearly", "Overnight trains worth the discomfort"],
+  education: ["The concept most students get backwards", "A study method that actually holds up", "Breaking down a proof step by step", "Why this is on every exam and how to prep", "Common misconceptions, corrected", "Office hours: the questions worth asking"],
+  comedy: ["Bombing on stage and what I learned from it", "Writing a joke that actually lands twice", "The premise that took six rewrites", "Crowd work when the room goes quiet", "Timing breakdown of a bit that finally worked", "What separates a good closer from a great one"],
+  music: ["Mixing vocals so they sit in the track", "Chord progression breakdown, ear-trained", "Building a home setup that doesn't bleed", "Why this arrangement choice works", "Mastering loudness without losing dynamics", "Sampling cleared the right way"],
+  parenting: ["What actually helped at 2am, tested over months", "Sleep regression, explained without the panic", "Picking battles that are worth picking", "A routine that survived three kids", "What the pediatrician actually meant by that", "Screen time rules that hold up in practice"],
+  fashion: ["Building a capsule wardrobe that actually works", "Tailoring basics that change how clothes fit", "Reading fabric quality before you buy", "Seasonal transitions without buying everything new", "Why this silhouette works for more body types", "Thrifting with an actual strategy"],
+};
+
+const BOT_TITLES = [
+  "You WON'T BELIEVE this!!!", "SHOCKING results — click now", "This changes EVERYTHING (must watch)",
+  "I can't believe this actually worked", "Insane trick nobody is talking about", "Do this ONE thing today",
+];
+
+function contentTitlesFor(categorySlug: string, profile: GrowthProfile, rand: () => number): string[] {
+  const pool = profile === "bot" ? BOT_TITLES : (CATEGORY_TITLES[categorySlug] ?? []);
+  return [...pool].sort(() => rand() - 0.5).slice(0, 6);
+}
+
 function genSeries(
   rand: () => number,
   profile: GrowthProfile,
@@ -108,6 +141,11 @@ function genSeries(
   let followers = baseFollowers;
   let totalViews = Math.round(baseFollowers * (8 + rand() * 12));
   let uploadCount = Math.round(20 + rand() * 200);
+  // Cumulative lifetime watch hours, like totalViews/uploadCount — the ROI
+  // scorer (src/lib/roi/score.ts) treats watch_hours as a running total, not
+  // a daily figure, to match the shape of every other extensive metric in
+  // account_metrics and what a real Analytics-sourced value will look like.
+  let watchHoursTotal = Math.round((totalViews * (2 + rand() * 6)) / 60);
 
   const dailyGrowthRate =
     profile === "viral" ? 0.012 + rand() * 0.01 :
@@ -138,7 +176,10 @@ function genSeries(
     const avgViews = Math.round(followers * (profile === "bot" ? 0.9 + rand() * 0.3 : 0.15 + rand() * 0.25));
     const likes = Math.round(avgViews * engagementRate * (1 - commentShare));
     const comments = Math.round(avgViews * engagementRate * commentShare);
-    const watchHours = Math.round((dailyViews * (2 + rand() * 6)) / 60);
+    // Bots don't genuinely watch — keep their per-view watch minutes far
+    // below organic, same spirit as their engagementRate above.
+    const minutesPerView = profile === "bot" ? 0.1 + rand() * 0.3 : 2 + rand() * 6;
+    watchHoursTotal += Math.round((dailyViews * minutesPerView) / 60);
 
     rows.push({
       snapshot_date: date.toISOString().slice(0, 10),
@@ -147,7 +188,7 @@ function genSeries(
       avg_views: avgViews,
       likes,
       comments,
-      watch_hours: watchHours,
+      watch_hours: watchHoursTotal,
       upload_count: uploadCount,
     });
   }
@@ -283,10 +324,31 @@ async function main() {
       if (metricsError) {
         console.error(`  ! failed to insert metrics for ${seed.name}/${platformSlug}:`, metricsError.message);
       }
+
+      // Recent content titles, primary account only — see contentTitlesFor().
+      if (pIdx === 0) {
+        const titles = contentTitlesFor(seed.categorySlug, seed.profile, rand);
+        const contentRows = titles.map((title, i) => ({
+          creator_account_id: account.id,
+          external_id: `seed-title-${i}`,
+          title,
+          published_at: new Date(Date.now() - i * 12 * 86_400_000).toISOString(),
+        }));
+        const { error: contentError } = await supabase
+          .from("creator_content_items")
+          .upsert(contentRows, { onConflict: "creator_account_id,external_id" });
+        if (contentError) {
+          console.error(`  ! failed to insert content items for ${seed.name}:`, contentError.message);
+        }
+      }
     }
 
     console.log(`  ✓ ${seed.name} (${seed.categorySlug}, ${seed.profile})`);
   }
+
+  console.log("Scoring relevance signals (skipped if ANTHROPIC_API_KEY isn't set)...");
+  const contentSummary = await recomputeContentSignals(supabase, createdCreatorIds);
+  console.log(`  scored ${contentSummary.scored}, skipped ${contentSummary.skipped}`);
 
   console.log("Recomputing ROI scores...");
   const summary = await recomputeRoiScores(supabase, { creatorIds: createdCreatorIds });
