@@ -207,6 +207,26 @@ export interface CreatorContentSignals {
   computed_at: string;
 }
 
+/** A structured pricing data point from the sponsorship knowledge base
+ * (Nolan v2 Phase C2). `size_tier` is usually a SizeTier from
+ * src/lib/roi/score.ts (nano/micro/mid/macro/mega), but a source with its
+ * own incompatible tier boundaries or no tier concept at all (a
+ * marketplace-wide average) uses a free-text label instead — see the
+ * seed comments in supabase/schema.sql. Multiple rows can share a
+ * (platform_slug, size_tier) with different `source`s; that dispersion is
+ * intentional and must never be averaged away — see pricing.ts. */
+export interface RateBenchmark {
+  id: string;
+  platform_slug: string;
+  size_tier: string;
+  low_cents: number;
+  /** null = open-ended, e.g. "$50,000+". */
+  high_cents: number | null;
+  source: string;
+  methodology_note: string | null;
+  as_of: string;
+}
+
 export type ClaimMethod = "oauth_youtube" | "bio_token";
 export type ClaimStatus = "pending" | "verified" | "rejected";
 
@@ -325,28 +345,76 @@ export interface NolanMessage {
   created_at: string;
 }
 
-export type ContractSeverity = "info" | "caution" | "warning";
+/** Nolan v2 (Phase C5) risk scale — LOW/MEDIUM/HIGH/CRITICAL, per the
+ * knowledge base's clause-review model (src/lib/knowledge/sponsorship-industry.ts).
+ * Replaces the old three-level info/caution/warning scale. */
+export type ContractRiskLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
-export interface ContractRedFlag {
+export type ContractRecommendation = "ACCEPT" | "COUNTER" | "DECLINE" | "COUNSEL_REVIEW";
+
+/** One clause from the knowledge base's core clause matrix (deliverables,
+ * compensation, usage rights, exclusivity, indemnity, termination, etc. —
+ * ~25 categories), scored individually rather than lumped into one
+ * generic "red flags" list. */
+export interface ContractClauseRisk {
   clause: string;
-  severity: ContractSeverity;
-  explanation: string;
+  /** What the document currently says, paraphrased — or "Not addressed in
+   * this document" when the clause is simply absent (itself often the
+   * risk, e.g. no kill fee). */
+  currentLanguage: string;
+  risk: ContractRiskLevel;
+  why: string;
+  whoControlsRisk: "creator" | "brand" | "shared";
+  proposedMitigation: string;
+  /** True when this specific issue is substantial enough to warrant real
+   * legal review, not just Nolan's plain-language read. */
+  counselReview: boolean;
 }
 
-/** Structured extraction from a contract, produced by /api/nolan/analyze via
- * output_config.format. Plain-language, never a legal conclusion — see
- * NOLAN_SYSTEM_PROMPT in src/lib/claude.ts. */
+/** The rights actually granted, decomposed per the knowledge base's rights
+ * checklist — a "perpetual, worldwide, all-media" grant should never hide
+ * inside one flat "usage rights" field unnoticed. Each field is null when
+ * the document doesn't address that dimension at all (silence on a rights
+ * dimension is itself worth flagging, not the same as "none granted"). */
+export interface ContractRightsGrant {
+  media: string | null;
+  territory: string | null;
+  term: string | null;
+  sublicensing: string | null;
+  editingDerivatives: string | null;
+  nameLikenessVoice: string | null;
+  aiSyntheticReplica: string | null;
+  whitelistingPaidMedia: string | null;
+  postTerminationUse: string | null;
+  renewal: string | null;
+}
+
+export interface ContractComplianceCheck {
+  issue: string;
+  status: "ok" | "concern" | "unclear" | "not_applicable";
+  requiredAction: string | null;
+  /** e.g. "FTC Endorsement Guides" — never left unattributed. */
+  source: string | null;
+}
+
+/** Structured extraction and analysis from a contract, produced by
+ * /api/nolan/analyze via output_config.format. Plain-language, never a
+ * legal conclusion — see NOLAN_SYSTEM_PROMPT in src/lib/claude.ts. */
 export interface ContractReview {
   summary: string;
+  overallRisk: ContractRiskLevel;
+  recommendation: ContractRecommendation;
   parties: string[];
   term: string | null;
   compensation: string | null;
   deliverables: string[];
-  exclusivity: string | null;
-  usageRights: string | null;
-  ipAssignment: string | null;
-  termination: string | null;
-  redFlags: ContractRedFlag[];
+  rights: ContractRightsGrant;
+  clauseRisks: ContractClauseRisk[];
+  complianceChecks: ContractComplianceCheck[];
+  /** What the review had to assume, or couldn't determine from the
+   * document at all — kept separate from findings per the knowledge
+   * base's audit-trail principle. */
+  assumptionsOrMissingData: string[];
 }
 
 export interface NolanDocument {

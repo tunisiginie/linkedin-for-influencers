@@ -453,6 +453,101 @@ create policy "Creator content signals are public-read" on public.creator_conten
   for select using (true);
 
 -- =========================================================================
+-- RATE_BENCHMARKS  (Nolan v2 Phase C2 — structured per-deliverable pricing
+-- ranges, from the sponsorship industry knowledge base
+-- (src/lib/knowledge/sponsorship-industry.ts). Nolan's pricing engine
+-- (src/lib/nolan/pricing.ts) computes with these; the doc's own central
+-- lesson is that different sources measure different populations and must
+-- never be averaged into one fake number — so multiple `source` rows per
+-- (platform, size_tier) are expected and intentional, not a data-quality
+-- problem. `size_tier` matches sizeTierFor() in src/lib/roi/score.ts
+-- (nano/micro/mid/macro/mega) for rows tied to that tier scheme; a source
+-- using different tier boundaries (see the Shopify rows' methodology_note)
+-- or no tier concept at all (Collabstr's marketplace-wide average) uses a
+-- free-text label instead rather than being forced into a bucket its own
+-- methodology doesn't support.
+-- =========================================================================
+create table if not exists public.rate_benchmarks (
+  id               uuid primary key default gen_random_uuid(),
+  platform_slug    text not null,
+  size_tier        text not null,
+  low_cents        bigint not null,
+  high_cents       bigint, -- null = open-ended, e.g. "$50,000+"
+  source           text not null,
+  methodology_note text,
+  as_of            date not null,
+  created_at       timestamptz not null default now(),
+  unique (platform_slug, size_tier, source)
+);
+
+create index if not exists rate_benchmarks_platform_tier_idx
+  on public.rate_benchmarks (platform_slug, size_tier);
+
+alter table public.rate_benchmarks enable row level security;
+
+drop policy if exists "Rate benchmarks are public-read" on public.rate_benchmarks;
+create policy "Rate benchmarks are public-read" on public.rate_benchmarks
+  for select using (true);
+
+insert into public.rate_benchmarks (platform_slug, size_tier, low_cents, high_cents, source, methodology_note, as_of) values
+  -- Hootsuite 2026 pricing guide — the tier scheme this report (and sizeTierFor()) uses throughout: nano 1K-10K, micro 10K-50K, mid 50K-500K, macro 500K-1M, mega 1M+.
+  ('instagram', 'nano',  2000,    20000,   'Hootsuite 2026 pricing guide', 'Discovery-stage budget range, not a fair-market-value determination. Hootsuite states there is no universal rate card.', '2026-01-01'),
+  ('instagram', 'micro', 20000,   200000,  'Hootsuite 2026 pricing guide', 'Discovery-stage budget range, not a fair-market-value determination.', '2026-01-01'),
+  ('instagram', 'mid',   200000,  500000,  'Hootsuite 2026 pricing guide', 'Discovery-stage budget range, not a fair-market-value determination.', '2026-01-01'),
+  ('instagram', 'macro', 500000,  1500000, 'Hootsuite 2026 pricing guide', 'Discovery-stage budget range, not a fair-market-value determination.', '2026-01-01'),
+  ('instagram', 'mega',  1500000, null,    'Hootsuite 2026 pricing guide', 'Open-ended: $15,000+. Discovery-stage budget range, not a fair-market-value determination.', '2026-01-01'),
+
+  ('tiktok', 'nano',  2000,    50000,   'Hootsuite 2026 pricing guide', 'Discovery-stage budget range, not a fair-market-value determination.', '2026-01-01'),
+  ('tiktok', 'micro', 50000,   200000,  'Hootsuite 2026 pricing guide', 'Discovery-stage budget range, not a fair-market-value determination.', '2026-01-01'),
+  ('tiktok', 'mid',   200000,  500000,  'Hootsuite 2026 pricing guide', 'Discovery-stage budget range, not a fair-market-value determination.', '2026-01-01'),
+  ('tiktok', 'macro', 500000,  2000000, 'Hootsuite 2026 pricing guide', 'Discovery-stage budget range, not a fair-market-value determination.', '2026-01-01'),
+  ('tiktok', 'mega',  2000000, null,    'Hootsuite 2026 pricing guide', 'Open-ended: $20,000+. Discovery-stage budget range, not a fair-market-value determination.', '2026-01-01'),
+
+  ('youtube', 'nano',  10000,   50000,   'Hootsuite 2026 pricing guide', 'Discovery-stage budget range, not a fair-market-value determination.', '2026-01-01'),
+  ('youtube', 'micro', 50000,   500000,  'Hootsuite 2026 pricing guide', 'Discovery-stage budget range, not a fair-market-value determination.', '2026-01-01'),
+  ('youtube', 'mid',   500000,  1500000, 'Hootsuite 2026 pricing guide', 'Discovery-stage budget range, not a fair-market-value determination.', '2026-01-01'),
+  ('youtube', 'macro', 1500000, 2500000, 'Hootsuite 2026 pricing guide', 'Discovery-stage budget range, not a fair-market-value determination.', '2026-01-01'),
+  ('youtube', 'mega',  2500000, null,    'Hootsuite 2026 pricing guide', 'Open-ended: $25,000+. Discovery-stage budget range, not a fair-market-value determination.', '2026-01-01'),
+
+  ('x', 'nano',  200,    2500,   'Hootsuite 2026 pricing guide', 'Discovery-stage budget range, not a fair-market-value determination.', '2026-01-01'),
+  ('x', 'micro', 2500,   10000,  'Hootsuite 2026 pricing guide', 'Discovery-stage budget range, not a fair-market-value determination.', '2026-01-01'),
+  ('x', 'mid',   10000,  100000, 'Hootsuite 2026 pricing guide', 'Discovery-stage budget range, not a fair-market-value determination.', '2026-01-01'),
+  ('x', 'macro', 100000, 200000, 'Hootsuite 2026 pricing guide', 'Discovery-stage budget range, not a fair-market-value determination.', '2026-01-01'),
+  ('x', 'mega',  200000, null,   'Hootsuite 2026 pricing guide', 'Open-ended: $2,000+. Discovery-stage budget range, not a fair-market-value determination.', '2026-01-01'),
+
+  ('facebook', 'nano',  2500,    20000,   'Hootsuite 2026 pricing guide', 'Discovery-stage budget range, not a fair-market-value determination. No "facebook" row exists in the platforms table yet (the app does not support connecting a Facebook account) — stored for Nolan reference only.', '2026-01-01'),
+  ('facebook', 'micro', 20000,   100000,  'Hootsuite 2026 pricing guide', 'Discovery-stage budget range, not a fair-market-value determination.', '2026-01-01'),
+  ('facebook', 'mid',   100000,  500000,  'Hootsuite 2026 pricing guide', 'Discovery-stage budget range, not a fair-market-value determination.', '2026-01-01'),
+  ('facebook', 'macro', 500000,  1000000, 'Hootsuite 2026 pricing guide', 'Discovery-stage budget range, not a fair-market-value determination.', '2026-01-01'),
+  ('facebook', 'mega',  1000000, null,    'Hootsuite 2026 pricing guide', 'Open-ended: $10,000+. Discovery-stage budget range, not a fair-market-value determination.', '2026-01-01'),
+
+  ('twitch', 'nano',  5000,    12000,   'Hootsuite 2026 pricing guide', 'Discovery-stage budget range, not a fair-market-value determination. Hootsuite attributes its Twitch figures to Infloq.', '2026-01-01'),
+  ('twitch', 'micro', 12000,   60000,   'Hootsuite 2026 pricing guide', 'Discovery-stage budget range, not a fair-market-value determination. Hootsuite attributes its Twitch figures to Infloq.', '2026-01-01'),
+  ('twitch', 'mid',   60000,   300000,  'Hootsuite 2026 pricing guide', 'Discovery-stage budget range, not a fair-market-value determination. Hootsuite attributes its Twitch figures to Infloq.', '2026-01-01'),
+  ('twitch', 'macro', 300000,  1500000, 'Hootsuite 2026 pricing guide', 'Discovery-stage budget range, not a fair-market-value determination. Hootsuite attributes its Twitch figures to Infloq.', '2026-01-01'),
+  ('twitch', 'mega',  1500000, null,    'Hootsuite 2026 pricing guide', 'Open-ended: $15,000+. Discovery-stage budget range, not a fair-market-value determination. Hootsuite attributes its Twitch figures to Infloq.', '2026-01-01'),
+
+  -- Shopify's 2026 aggregation — deliberately NOT merged into the Hootsuite
+  -- rows above. Shopify uses a wider micro tier (10,001-100,000 followers,
+  -- straddling this schema's micro AND mid tiers) and aggregates multiple
+  -- outside sources; the doc's own point is that these figures measure a
+  -- different population than Hootsuite's, not a more-precise version of it.
+  ('instagram', 'micro', 25000, 500000,  'Shopify 2026 aggregation', 'Shopify defines "micro" as 10,001-100,000 followers -- wider than this table''s micro tier (10K-50K) and overlapping its mid tier. Aggregates multiple outside sources; treat as directional, not additive with the Hootsuite row for the same tier label.', '2026-01-01'),
+  ('tiktok',    'micro', 20000, 120000,  'Shopify 2026 aggregation', 'Shopify defines "micro" as 10,001-100,000 followers -- wider than this table''s micro tier (10K-50K) and overlapping its mid tier. Aggregates multiple outside sources; treat as directional.', '2026-01-01'),
+  ('youtube',   'micro', 100000, 1000000, 'Shopify 2026 aggregation', 'Shopify defines "micro" as 10,001-100,000 followers -- wider than this table''s micro tier (10K-50K) and overlapping its mid tier. Aggregates multiple outside sources; treat as directional.', '2026-01-01'),
+
+  -- Collabstr 2026 marketplace report -- an average of actual self-serve
+  -- marketplace TRANSACTIONS, not a tier-based rate card. Deliberately
+  -- stored under a non-tier size_tier label rather than forced into
+  -- "nano"/"micro": Collabstr's own population mixes creator sizes and
+  -- skews toward small/UGC engagements, so mapping it to one tier would
+  -- misrepresent what it measures. This is the report's central pricing
+  -- lesson made concrete -- a marketplace average and a rate-card benchmark
+  -- answer different questions and must never be collapsed into one number.
+  ('instagram', 'marketplace_average', 19300, 21400, 'Collabstr 2026 marketplace report', 'Average paid Instagram collaboration ($193) and average posted rate ($214) on Collabstr''s self-serve marketplace. ~80% of Collabstr transactions were under $300. Describes the mix of transactions on a marketplace skewed toward small creators and UGC work -- NOT evidence that a large established creator''s $10,000+ quote is anomalous.', '2026-01-01')
+on conflict (platform_slug, size_tier, source) do nothing;
+
+-- =========================================================================
 -- CLAIM_REQUESTS  (phase 6 — claim-your-page verification)
 -- =========================================================================
 create table if not exists public.claim_requests (

@@ -20,6 +20,7 @@ import type {
   NolanThread,
   OrgProduct,
   Platform,
+  RateBenchmark,
   TalentList,
 } from "@/lib/types";
 
@@ -42,6 +43,19 @@ export async function getPlatforms(): Promise<Platform[]> {
   const supabase = await createClient();
   const { data } = await supabase.from("platforms").select("*").order("name");
   return (data as Platform[]) ?? [];
+}
+
+/** All rate_benchmarks rows for a platform — every source kept separate,
+ * per src/lib/nolan/pricing.ts's benchmarkRangesFor(). Small, static-ish
+ * reference table; no pagination. */
+export async function getRateBenchmarks(platformSlug: string): Promise<RateBenchmark[]> {
+  if (!isSupabaseConfigured()) return [];
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("rate_benchmarks")
+    .select("*")
+    .eq("platform_slug", platformSlug);
+  return (data as RateBenchmark[]) ?? [];
 }
 
 export interface CreatorSearchParams {

@@ -7,12 +7,33 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { ContractSeverity, NolanDocument } from "@/lib/types";
+import type { ContractRecommendation, ContractRiskLevel, NolanDocument } from "@/lib/types";
 
-const SEVERITY_VARIANT: Record<ContractSeverity, "secondary" | "outline" | "destructive"> = {
-  info: "secondary",
-  caution: "outline",
-  warning: "destructive",
+const RISK_VARIANT: Record<ContractRiskLevel, "secondary" | "outline" | "destructive"> = {
+  LOW: "secondary",
+  MEDIUM: "outline",
+  HIGH: "destructive",
+  CRITICAL: "destructive",
+};
+
+const RECOMMENDATION_LABEL: Record<ContractRecommendation, string> = {
+  ACCEPT: "Accept",
+  COUNTER: "Counter",
+  DECLINE: "Decline",
+  COUNSEL_REVIEW: "Get counsel review",
+};
+
+const RIGHTS_LABELS: Record<string, string> = {
+  media: "Media",
+  territory: "Territory",
+  term: "Term",
+  sublicensing: "Sublicensing",
+  editingDerivatives: "Editing / derivatives",
+  nameLikenessVoice: "Name / likeness / voice",
+  aiSyntheticReplica: "AI / synthetic replica",
+  whitelistingPaidMedia: "Whitelisting / paid media",
+  postTerminationUse: "Post-termination use",
+  renewal: "Renewal",
 };
 
 function ReviewCard({ document }: { document: NolanDocument }) {
@@ -29,6 +50,15 @@ function ReviewCard({ document }: { document: NolanDocument }) {
           <p className="text-xs text-muted-foreground">Not analyzed yet.</p>
         ) : (
           <>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Badge variant={RISK_VARIANT[review.overallRisk]} className="text-[10px]">
+                {review.overallRisk} risk
+              </Badge>
+              <Badge variant="outline" className="text-[10px]">
+                {RECOMMENDATION_LABEL[review.recommendation]}
+              </Badge>
+            </div>
+
             <p className="text-sm text-foreground/90">{review.summary}</p>
 
             <dl className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
@@ -44,30 +74,6 @@ function ReviewCard({ document }: { document: NolanDocument }) {
                   <dd>{review.compensation}</dd>
                 </div>
               ) : null}
-              {review.exclusivity ? (
-                <div>
-                  <dt className="text-muted-foreground">Exclusivity</dt>
-                  <dd>{review.exclusivity}</dd>
-                </div>
-              ) : null}
-              {review.usageRights ? (
-                <div>
-                  <dt className="text-muted-foreground">Usage rights</dt>
-                  <dd>{review.usageRights}</dd>
-                </div>
-              ) : null}
-              {review.ipAssignment ? (
-                <div>
-                  <dt className="text-muted-foreground">IP assignment</dt>
-                  <dd>{review.ipAssignment}</dd>
-                </div>
-              ) : null}
-              {review.termination ? (
-                <div>
-                  <dt className="text-muted-foreground">Termination</dt>
-                  <dd>{review.termination}</dd>
-                </div>
-              ) : null}
             </dl>
 
             {review.deliverables.length > 0 ? (
@@ -81,22 +87,78 @@ function ReviewCard({ document }: { document: NolanDocument }) {
               </div>
             ) : null}
 
-            {review.redFlags.length > 0 ? (
+            {Object.entries(review.rights).some(([, v]) => v) ? (
+              <div>
+                <p className="mb-1 text-xs text-muted-foreground">Rights granted</p>
+                <dl className="grid grid-cols-1 gap-1 text-xs">
+                  {Object.entries(review.rights)
+                    .filter(([, v]) => v)
+                    .map(([key, value]) => (
+                      <div key={key} className="flex flex-col gap-0.5 rounded-md border border-border p-1.5">
+                        <dt className="font-medium">{RIGHTS_LABELS[key] ?? key}</dt>
+                        <dd className="text-muted-foreground">{value}</dd>
+                      </div>
+                    ))}
+                </dl>
+              </div>
+            ) : null}
+
+            {review.clauseRisks.some((c) => c.risk !== "LOW") ? (
               <div className="flex flex-col gap-1.5">
                 <p className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
                   <AlertTriangle className="size-3.5" /> Worth a second look
                 </p>
-                {review.redFlags.map((flag, i) => (
-                  <div key={i} className="flex flex-col gap-0.5 rounded-md border border-border p-2">
-                    <div className="flex items-center gap-1.5">
-                      <Badge variant={SEVERITY_VARIANT[flag.severity]} className="text-[10px]">
-                        {flag.severity}
-                      </Badge>
-                      <span className="text-xs font-medium">{flag.clause}</span>
+                {review.clauseRisks
+                  .filter((c) => c.risk !== "LOW")
+                  .map((clause, i) => (
+                    <div key={i} className="flex flex-col gap-1 rounded-md border border-border p-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Badge variant={RISK_VARIANT[clause.risk]} className="text-[10px]">
+                          {clause.risk}
+                        </Badge>
+                        <span className="text-xs font-medium">{clause.clause}</span>
+                        {clause.counselReview ? (
+                          <Badge variant="outline" className="text-[10px]">
+                            Counsel review
+                          </Badge>
+                        ) : null}
+                      </div>
+                      <p className="text-xs text-muted-foreground">{clause.why}</p>
+                      <p className="text-xs">
+                        <span className="font-medium">Suggested:</span> {clause.proposedMitigation}
+                      </p>
                     </div>
-                    <p className="text-xs text-muted-foreground">{flag.explanation}</p>
-                  </div>
-                ))}
+                  ))}
+              </div>
+            ) : null}
+
+            {review.complianceChecks.some((c) => c.status === "concern" || c.status === "unclear") ? (
+              <div className="flex flex-col gap-1.5">
+                <p className="text-xs font-medium text-muted-foreground">Compliance</p>
+                {review.complianceChecks
+                  .filter((c) => c.status === "concern" || c.status === "unclear")
+                  .map((c, i) => (
+                    <div key={i} className="flex flex-col gap-0.5 rounded-md border border-border p-2">
+                      <div className="flex items-center gap-1.5">
+                        <Badge variant={c.status === "concern" ? "destructive" : "outline"} className="text-[10px]">
+                          {c.status}
+                        </Badge>
+                        <span className="text-xs font-medium">{c.issue}</span>
+                      </div>
+                      {c.requiredAction ? <p className="text-xs text-muted-foreground">{c.requiredAction}</p> : null}
+                    </div>
+                  ))}
+              </div>
+            ) : null}
+
+            {review.assumptionsOrMissingData.length > 0 ? (
+              <div>
+                <p className="mb-1 text-xs text-muted-foreground">Assumptions / missing data</p>
+                <ul className="list-inside list-disc text-xs text-muted-foreground">
+                  {review.assumptionsOrMissingData.map((a, i) => (
+                    <li key={i}>{a}</li>
+                  ))}
+                </ul>
               </div>
             ) : null}
           </>
