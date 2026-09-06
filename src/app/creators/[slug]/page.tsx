@@ -328,7 +328,7 @@ export default async function CreatorProfilePage({
         <div className="flex flex-col gap-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">ROI score breakdown</CardTitle>
+              <CardTitle className="text-sm">JAE Score breakdown</CardTitle>
             </CardHeader>
             <CardContent className="px-4">
               {hasRoi ? (

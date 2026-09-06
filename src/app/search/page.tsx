@@ -36,15 +36,14 @@ export default async function SearchPage({
   ]);
 
   return (
-    <div className="mx-auto grid max-w-6xl grid-cols-1 gap-4 px-4 py-6 md:grid-cols-[260px_1fr]">
-      <aside>
-        <div className="sticky top-[4.5rem]">
-          <SearchFilters categories={categories} platforms={platforms} />
-        </div>
-      </aside>
+    <div className="mx-auto max-w-5xl px-4 py-6">
+      <AiSearchBar size="lg" />
 
-      <div>
-        <AiSearchBar />
+      <div className="mt-4">
+        <SearchFilters categories={categories} platforms={platforms} />
+      </div>
+
+      <div className="mt-5">
         <div className="mb-3 flex items-baseline justify-between">
           <h1 className="text-lg font-semibold">
             {total.toLocaleString()} creator{total === 1 ? "" : "s"}
@@ -59,7 +58,7 @@ export default async function SearchPage({
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {creators.map((c) => (
               <CreatorCard key={c.id} creator={c} withSaveAction />
             ))}

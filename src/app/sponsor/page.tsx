@@ -25,7 +25,7 @@ export default async function SponsorHomePage() {
         Find creators sponsors can trust.
       </h1>
       <p className="mt-1 max-w-md text-center text-sm text-muted-foreground">
-        Every profile carries a transparent ROI score built from real platform metrics.
+        Every profile carries a transparent JAE Score built from real platform metrics.
       </p>
 
       <div className="mt-6 w-full max-w-xl">

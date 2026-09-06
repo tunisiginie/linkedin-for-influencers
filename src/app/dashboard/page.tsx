@@ -34,7 +34,7 @@ export default async function DashboardPage() {
           <CardContent className="px-4">
             <p className="text-sm text-muted-foreground">
               You&apos;re signed up as a creator, but haven&apos;t claimed your auto-generated
-              profile yet. Find it and verify ownership to unlock your dashboard, ROI score, and
+              profile yet. Find it and verify ownership to unlock your dashboard, JAE Score, and
               inbox.
             </p>
             <LinkButton href="/claim" size="sm" className="mt-4">
@@ -111,7 +111,7 @@ export default async function DashboardPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">Your ROI score</CardTitle>
+              <CardTitle className="text-sm">Your JAE Score</CardTitle>
             </CardHeader>
             <CardContent className="px-4">
               <RoiBadge

@@ -19,7 +19,7 @@ export function RoiBadge({
   if (score === null || grade === null) {
     return (
       <span className="inline-flex items-center rounded-full border border-dashed border-border px-2 py-0.5 text-xs text-muted-foreground">
-        ROI: pending
+        JAE Score: pending
       </span>
     );
   }
@@ -38,7 +38,7 @@ export function RoiBadge({
         sizes,
       )}
       style={{ borderColor: color, color }}
-      title={`ROI score ${score} / 1000, grade ${grade}`}
+      title={`JAE Score ${score} / 1000, grade ${grade}`}
     >
       <span className="font-semibold">{grade}</span>
       <span className="tabular-nums opacity-80">{score}</span>

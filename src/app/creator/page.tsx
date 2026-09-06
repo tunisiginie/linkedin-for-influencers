@@ -46,13 +46,16 @@ export default async function CreatorHomePage({
         </>
       ) : (
         <>
-          <span className="flex size-14 items-center justify-center rounded-(--radius-2xl) bg-primary/10 text-primary">
-            <Sparkles className="size-7" />
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
+            <Sparkles className="size-3.5 text-primary" /> Join the herd
           </span>
-          <h1 className="mt-4 text-2xl font-semibold sm:text-3xl">Connect your channel.</h1>
+          <h1 className="mt-4 text-center text-2xl font-semibold sm:text-3xl">
+            Get found. Get sponsored. <span className="text-primary">Fast.</span>
+          </h1>
           <p className="mt-1 max-w-md text-center text-sm text-muted-foreground">
-            We auto-generate a profile from your public metrics. Find yours and verify
-            ownership to claim it.
+            We auto-generate a profile from your public metrics — followers, engagement, growth,
+            all rolled into one JAE Score sponsors can actually compare. Find yours, verify
+            ownership, and start showing up in searches today.
           </p>
 
           <form action="/creator" className="mt-6 flex w-full max-w-xl gap-2">

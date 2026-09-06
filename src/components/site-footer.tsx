@@ -6,7 +6,8 @@ const LINK_GROUPS = [
     title: "Discover",
     links: [
       { href: "/search", label: "Find creators" },
-      { href: "/search?sort=roi", label: "Top ROI scores" },
+      { href: "/search?sort=roi", label: "Top JAE Scores" },
+      { href: "/jae-score", label: "What's the JAE Score?" },
     ],
   },
   {

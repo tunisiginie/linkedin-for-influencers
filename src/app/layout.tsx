@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
+import { NolanWidget } from "@/components/nolan-widget";
 import { Toaster } from "sonner";
 import { getMyClaimedCreator, getProfile } from "@/lib/auth";
 
@@ -43,6 +44,7 @@ export default async function RootLayout({
             <SiteHeader profile={profile} claimedCreatorSlug={creator?.slug ?? null} />
             <div className="flex-1">{children}</div>
             <SiteFooter />
+            <NolanWidget canPersist={Boolean(creator)} />
             <Toaster richColors position="top-right" />
           </TooltipProvider>
         </ThemeProvider>
